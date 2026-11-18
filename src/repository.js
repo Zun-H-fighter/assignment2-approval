@@ -25,6 +25,14 @@ export function createRepository(db) {
         VALUES (?,?,?,?,?,?,?)`).run(applicationId,actorId,action,fromStatus,toStatus,reason,causeHistoryId);
       return Number(r.lastInsertRowid);
     },
+    // [R1] 다음 대기자 1명 (자동 승급용)
+    //   같은 행사(event_id)이면서 status가 PENDING인 신청 중
+    //   created_at 오름차순, 같으면 id 오름차순으로 정렬한 첫 1건. 없으면 undefined.
+    //   반환 모양은 application(id)처럼 신청 객체로 맞추면 서비스에서 쓰기 편합니다.
+    //   학습 자료: 4장 대기 순서 SQL
+    nextPending(eventId) {
+      return undefined; // ← SQL로 채울 부분
+    },
     setStatus(id,status) { db.prepare("UPDATE applications SET status=?,updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?").run(status,id); return this.application(id); }
   };
 }
