@@ -1,0 +1,10 @@
+TEST_INJECTED_FAILURE
+✔ T29 자동 승급 이력 저장 실패 시 두 상태와 두 이력 모두 롤백 (539.539425ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 665.463129
