@@ -24,7 +24,7 @@ export function createApplicationService(repo) {
   // [S1] 이 행사의 담당 운영자인가?
   //   역할이 MANAGER이고, 행사의 managerId가 actor.id와 같을 때만 true
   function isManagerOf(actor, event) {
-    return false; // ← 채울 부분
+    return actor.role === 'MANAGER' && event.managerId === actor.id;
   }
 
   return {
@@ -38,7 +38,20 @@ export function createApplicationService(repo) {
       //   [A4] 저장             repo.insert      → 신청 객체
       //   [A5] 이력             repo.addHistory  action APPLY, fromStatus 없음, toStatus PENDING
       //   [A6] A1~A5 전체를 tx()로 감싸기
-      throw new AppError(501,'NOT_IMPLEMENTED','TODO-01 신청과 이력 저장을 구현하세요.');
+      return tx(() => {
+        if(!repo.event(eventId)) {
+          throw missing('행사');
+        }
+        if (actor.role !== 'STUDENT') {
+          throw forbidden();
+        }
+        if (repo.existing(eventId, actor.id)) {
+          throw new AppError(409, 'ALREADY_APPLIED', '이미 신청했습니다.');
+      }
+        const application = repo.insert(eventId, actor.id);
+        repo.addHistory({applicationId: application.id, actorId: actor.id, action: 'APPLY', fromStatus: null, toStatus: 'PENDING'});
+        return application;
+      });
     },
     cancel(actor, applicationId) {
       // TODO-02: 본인의 PENDING만 CANCELLED로 변경 + CANCEL 이력.
@@ -48,7 +61,21 @@ export function createApplicationService(repo) {
       //   [C3] 상태             PENDING이 아니면 invalidState()
       //   [C4] 저장 + 이력      setStatus → addHistory(CANCEL, PENDING → CANCELLED)
       //   [C5] tx()로 감싸기
-      throw new AppError(501,'NOT_IMPLEMENTED','TODO-02 대기 취소와 이력을 구현하세요.');
+      return tx(() => {
+        const application = repo.application(applicationId);
+        if(!application) {
+          throw missing('신청');
+        }
+        if(application.userId !== actor.id) {
+          throw forbidden();
+        } 
+        if(application.status !== 'PENDING') {
+          throw invalidState();
+        }
+        const updatedApplication = repo.setStatus(applicationId, 'CANCELLED');
+        repo.addHistory({applicationId: applicationId, actorId: actor.id, action: 'CANCEL', fromStatus: 'PENDING', toStatus: 'CANCELLED'});
+        return updatedApplication;
+      });
     },
     approve(actor, applicationId) {
       // TODO-03: 담당자·PENDING·정원 검사 → APPROVED + APPROVE 이력.
@@ -59,7 +86,25 @@ export function createApplicationService(repo) {
       //   [P4] 정원             repo.approvedCount 가 capacity 이상이면 409 CAPACITY_FULL
       //   [P5] 저장 + 이력      APPROVE, PENDING → APPROVED
       //   [P6] tx()로 감싸기
-      throw new AppError(501,'NOT_IMPLEMENTED','TODO-03 승인과 이력을 구현하세요.');
+      return tx(() => {
+        const application = repo.application(applicationId);
+        if(!application) {
+          throw missing('신청');
+        }
+        const event = repo.event(application.eventId);
+        if(!isManagerOf(actor, event)) {
+          throw forbidden();
+        }
+        if(application.status !== 'PENDING') {
+          throw invalidState();
+        }
+        if(repo.approvedCount(event.id) >= event.capacity) {
+          throw new AppError(409, 'CAPACITY_FULL', '정원이 가득 찼습니다.');
+        }
+        const updatedApplication = repo.setStatus(applicationId, 'APPROVED');
+        repo.addHistory({applicationId: applicationId, actorId: actor.id, action: 'APPROVE', fromStatus: 'PENDING', toStatus: 'APPROVED'});
+        return updatedApplication;
+      });
     },
     revoke(actor, applicationId, reason) {
       // TODO-04: 담당자·APPROVED 검사 → REVOKED + REVOKE 이력.
@@ -73,7 +118,32 @@ export function createApplicationService(repo) {
       //   [V6] 있으면 APPROVED 저장 + AUTO_APPROVE 이력 (actorId = 이 운영자, causeHistoryId = V4의 ID)
       //        없으면 promoted = null
       //   [V7] V1~V6 전체를 tx() 하나로
-      throw new AppError(501,'NOT_IMPLEMENTED','TODO-04 승인 취소·자동 승급·이력을 구현하세요.');
-    }
-  };
+
+      return tx(() => {
+        const application = repo.application(applicationId);
+        if(!application) {
+          throw missing('신청');
+        }
+        const event = repo.event(application.eventId);
+        if(!isManagerOf(actor, event)) {
+          throw forbidden();
+        }
+        if(application.status !== 'APPROVED') {
+          throw invalidState();
+        }
+        const revoked = repo.setStatus(applicationId, 'REVOKED');
+        const revokeHistoryId = repo.addHistory({applicationId: applicationId, actorId: actor.id, action: 'REVOKE', fromStatus: 'APPROVED', toStatus: 'REVOKED', reason: reason});
+        
+        const next = repo.nextPending(event.id);
+
+        let promoted = null;
+        if(next) {
+          promoted = repo.setStatus(next.id, 'APPROVED');
+          repo.addHistory({applicationId: next.id, actorId: actor.id, action: 'AUTO_APPROVE', fromStatus: 'PENDING', toStatus: 'APPROVED', causeHistoryId: revokeHistoryId});
+        }
+
+        return {revoked, promoted};
+      });
+    },
+  }
 }
