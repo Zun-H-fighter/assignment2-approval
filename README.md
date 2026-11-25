@@ -98,11 +98,67 @@ npm run db:reset
 - `tests/`: 기반·필수·선택 심화 테스트
 - `docs/API.md`: 상태·이력·입출력 계약
 
-## 제출 전 작성할 내용
+## 제출 정보 (과제 2 구현)
+ 
+**202212270 최준혁** · 저장소: https://github.com/Zun-H-fighter/assignment2-approval
+ 
+### 서비스 소개
+학생이 행사 참가를 신청하고 담당 운영자가 승인하는 서비스입니다. 제공된 시작 코드에 신청·대기 취소·직접 승인·승인 취소와 대기열 자동 승급·변경 이력의 업무 규칙과 트랜잭션을 구현했습니다.
+ 
+### 구현 완료 여부
+| 항목 | 상태 |
+|---|---|
+| TODO-01 apply (신청 + APPLY 이력) | 완료 |
+| TODO-02 cancel (본인 PENDING 취소 + CANCEL 이력) | 완료 |
+| TODO-03 approve (담당자·상태·정원 검사 + APPROVE 이력) | 완료 |
+| TODO-04 revoke (승인 취소 + FIFO 1명 자동 승급 + 원인 이력 연결) | 완료 |
+| 트랜잭션 (상태 + 이력 원자적 저장, 실패 시 전체 롤백) | 완료 |
+| `npm test` 기반 | 4 / 4 |
+| `npm run test:assignment` 필수 | 32 / 32 |
+| `npm run test:advanced` 선택 심화 (동시 승인 20회) | 통과 |
+| 화면 검증 U01~U05 | 완료 (`docs/evidence/UI_capture/`) |
+ 
+### 변경 파일 (제공 코드와 구분)
+| 파일 | 변경 내용 |
+|---|---|
+| `src/application-service.js` | `apply`·`cancel`·`approve`·`revoke` 구현, 트랜잭션 도우미 `tx()`(BEGIN IMMEDIATE / COMMIT / ROLLBACK), 담당자 확인 `isManagerOf()` 추가 |
+| `src/repository.js` | 다음 대기자 조회 `nextPending(eventId)` 추가 (같은 행사 PENDING, `created_at ASC, id ASC LIMIT 1`) |
+| `docs/evidence/` | 테스트 로그·화면 캡처 (아래 참고) |
+| `docs/report.pdf` | 보고서 |
+ 
+그 외 파일(`app.js`, `auth.js`, `db.js`, `repository.js`의 기존 함수, `public/`, `tests/`)은 제공 코드 그대로입니다. 변경분은 `git diff 45439b8 HEAD -- src`로 확인할 수 있습니다.
+ 
+### 실행 환경과 실행 방법
+- Node.js **24.x** (`.nvmrc`), npm. SQLite는 Node 내장 모듈이라 별도 설치가 필요 없습니다.
+- 확인 환경: Windows + WSL(Ubuntu)
+```sh
+nvm use                     # Node 24
+npm ci
+npm test                    # 기반 4개
+npm run test:assignment     # 필수 32개
+npm run test:advanced       # 선택 심화
+npm start                   # http://127.0.0.1:3000
+```
+ 
+DB 초기화: 서버를 끈 뒤 `npm run db:reset` → `RESET` 입력. 신청·이력을 지우고 계정·행사를 다시 만듭니다. 계정은 위 "연습 계정" 표를 참고하세요(공통 비밀번호 `Classroom123!`).
+ 
+### 검증 증거
+| 파일 | 내용 |
+|---|---|
+| `docs/evidence/bf_*.png` | 구현 전 테스트 (기반 4/4, 필수 2/32) |
+| `docs/evidence/01-after-approve.log` | apply·cancel·approve 구현 후 (18/32) |
+| `docs/evidence/02-no-tx.log`, `02-no-tx-T29.log` | 트랜잭션 적용 전 (29/32, T28~T30 실패) |
+| `docs/evidence/03-tx.log`, `03-tx-T29.log` | 트랜잭션 적용 후 (32/32) |
+| `docs/evidence/03-starter.log`, `03-advanced.log` | 기반 테스트, 선택 심화 |
+| `docs/evidence/UI_capture/` | 화면 검증 U01~U05 |
+ 
+### 알려진 문제와 한계
+- 선택 심화는 `BEGIN IMMEDIATE`와 `busy_timeout=5000`으로 보호합니다. 20회 반복 통과는 모든 경쟁 상황이 없다는 증명이 아니며, 단일 SQLite 파일·한 대의 컴퓨터 기준입니다.
+- `nextPending`은 `SELECT *`로 원본 행(snake_case)을 반환하며, 서비스에서는 `id`만 사용합니다.
+### AI 사용 요약
+Claude(Anthropic)를 개념 학습과 코드 검토에 사용했습니다. 구현 코드는 직접 작성했고, AI가 만든 것은 TODO 단계 주석이 달린 뼈대(커밋 `0221257`), 학습 자료, 보고서 초안 문장과 다이어그램 2개입니다. 자세한 내용은 보고서의 "AI 활용과 참고 자료"에 있습니다.
 
-이 부분을 본인의 서비스 소개, 변경 파일, 구현 완료 여부, 실행 환경, 알려진 문제, 보고서·검증 증거 링크와 AI 사용 요약으로 바꾸세요. GitHub URL·커밋 SHA를 LMS에 제출하고 보고서 PDF를 저장소 `docs/report.pdf`와 LMS에 같은 버전으로 첨부합니다.
 
-`node_modules`, 생성 DB·서명 키, 실제 `.env`·JWT와 개인 정보는 제출하지 않습니다. 제공 코드와 직접 구현한 부분을 구분합니다.
 
 ## 참고 문서
 
