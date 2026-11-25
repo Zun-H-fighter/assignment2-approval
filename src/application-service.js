@@ -17,8 +17,15 @@ export function createApplicationService(repo) {
   //   fn의 반환값을 그대로 반환.
   //   학습 자료: 2장 트랜잭션, 3장 BEGIN 종류
   function tx(fn) {
-    // 채울 부분 (지금은 트랜잭션 없이 그냥 실행만 함)
-    return fn();
+    db.exec('BEGIN IMMEDIATE'); // IMMEDIATE로 해야 다른 트랜잭션이 INSERT/UPDATE를 못 합니다. (SELECT는 허용) 선택심화(동시 승인) 내용.
+    try {
+      const result = fn();
+      db.exec('COMMIT');
+      return result;
+    } catch (e) {
+      db.exec('ROLLBACK');
+      throw e;
+    }
   }
 
   // [S1] 이 행사의 담당 운영자인가?
